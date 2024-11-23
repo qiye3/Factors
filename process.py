@@ -13,9 +13,9 @@ def merge_sheet(path, output_file='data/merged_sheet.csv'):
     - output_file (str): 合并后保存的文件名，默认为 "merged_sheet.csv"。
     """
     # 如果输出文件已存在，返回
-    if os.path.exists(output_file):
-        print(f"文件 {output_file} 已存在。")
-        return
+    # if os.path.exists(output_file):
+    #     print(f"文件 {output_file} 已存在。")
+    #     return
     
     file_list = [f for f in os.listdir(path) if f.endswith('.csv')]
     
@@ -79,7 +79,7 @@ def merge_features():
 
             stock_quarter_data = data[data['股票代码'] == stock_data['股票代码'].iloc[0]]
             if stock_quarter_data.empty:
-                print(f"警告：股票代码 {stock_data['股票代码'].iloc[0]} 在季度数据中没有对应记录。")
+                # print(f"警告：股票代码 {stock_data['股票代码'].iloc[0]} 在季度数据中没有对应记录。")
                 lost_stock.append(stock)
                 continue
 
@@ -97,14 +97,20 @@ def merge_features():
             # print(f"错误：文件 {stock} 中缺失必要的列。错误信息：{e}")
             continue
     
-    # 将所有股票数据合并为一个大表格
+    # # 将所有股票数据合并为一个大表格
     # final_data = pd.concat(merged_results, ignore_index=True)
     
-    # 保存到文件
+    # # 保存到文件
     # final_data.to_csv('data/merged_stock_data.csv', index=False, encoding='utf-8-sig')
     # print("合并完成，结果保存为 data/merged_stock_data.csv")
     
     return lost_stock
     
 if __name__ == '__main__':
-    merge_features()
+    process_sheets()
+    lost_stock = merge_features()
+    
+    if lost_stock:
+        lost_stock = pd.DataFrame(lost_stock, columns=['股票代码'])
+        lost_stock.to_csv('data/lost_stock.csv', index=False, encoding='utf-8-sig')
+    print("合并完成。")

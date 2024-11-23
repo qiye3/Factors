@@ -7,7 +7,7 @@ import os
 def download_date_data(code, flag):
     try:
         fg = '' if flag not in ['qfq', 'hfq'] else flag
-        stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date='20130101',end_date='20231231', adjust=fg)
+        stock_zh_a_hist_df = ak.stock_zh_a_hist(symbol=code, period="daily", start_date='20090101',end_date='20231231', adjust=fg)
         stock_zh_a_hist_df.to_csv(f'./data_{flag}/{code}.csv')
     except Exception as e:
         print(f"download {flag} stock {code} error!!!")
@@ -203,7 +203,7 @@ def download_cash_flow_data(start_date, end_date):
 
 
 if __name__ == '__main__':
-    start_date = '20130101'
+    start_date = '20090101'
     end_date = '20231231'
     download_index_data("sh000300")
     download_all_date_data("bfq")
