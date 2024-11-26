@@ -667,12 +667,12 @@ def get_clean_factor(factor,
         no_raise,
         zero_aware
     )
-    print("quantile data")
-    print(quantile_data)
+    # print("quantile data")
+    # print(quantile_data)
     
     quantile_data = quantile_data.droplevel(0)  # 移除第一个 'date'
-    print("After resetting index:")
-    print(quantile_data)
+    # print("After resetting index:")
+    # print(quantile_data)
 
     merged_data['factor_quantile'] = quantile_data
     # return merged_data, quantile_data
