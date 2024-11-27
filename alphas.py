@@ -92,6 +92,7 @@ class Alphas(object):
         df_all['alaq'] = df_all['资产流动性'] / df_all['资产-总资产'].shift(1)
         df_all['pmq'] = df_all['营业利润'] / df_all['营业总收入'].shift(1)
         df_all['cta'] = df_all['资产-货币资金'] / df_all['资产-总资产']
+        df_all['bm'] = df_all['股东权益合计'] / df_all['市值']
         
         # 修改列名
         df_all = df_all.rename(columns={
@@ -115,7 +116,7 @@ class Alphas(object):
 
         # 返回计算因子需要的列
         df_all = df_all.reset_index()
-        df_all = df_all[['asset', 'date', "open", "close", "high", "low", "volume", "amount", 'vwap', "pctChg", 'turnover', 'benchmark_open', 'benchmark_close', 'benchmark_high', 'benchmark_low', 'benchmark_vol', 'roe', 'roa', 'cvd', 'epq', 'emq', 'sgq', 'alaq', 'pmq', 'cta', 'size', 'Rmrf', 'Smb', 'Hml', 'rf']]
+        df_all = df_all[['asset', 'date', "open", "close", "high", "low", "volume", "amount", 'vwap', "pctChg", 'turnover', 'benchmark_open', 'benchmark_close', 'benchmark_high', 'benchmark_low', 'benchmark_vol', 'roe', 'roa', 'cvd', 'epq', 'emq', 'sgq', 'alaq', 'pmq', 'cta', 'size', 'Rmrf', 'Smb', 'Hml', 'rf', 'bm']]
         # ddu = df_all[df_all.duplicated()]
         df_all=df_all[df_all['asset'].notnull()]
         

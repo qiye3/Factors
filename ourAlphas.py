@@ -29,21 +29,16 @@ class ourAlphas(Alphas):
         self.turnover = df_data['turnover'] # 换手率
         self.amount = df_data['amount'] # 成交额
         self.pctChg = df_data['pctChg'] # 涨跌幅
+        self.bm = df_data['bm'] # 账面市值比
         self.rf = df_data['rf'] # 无风险利率
         
-        assets = self.returns.columns
-        dates = self.returns.index
-        self.Rmrf = pd.read_csv('data/Rmrf.csv', index_col=0).reindex(index=dates, columns=assets)
-        self.Smb = pd.read_csv('data/Smb.csv', index_col=0).reindex(index=dates, columns=assets)
-        self.Hml = pd.read_csv('data/Hml.csv', index_col=0).reindex(index=dates, columns=assets)
 
-        # self.Rmrf = df_data['Rmrf'] # 市场溢酬因子
-        # self.Smb = df_data['Smb'] # 市值因子
-        # self.Hml = df_data['Hml'] # 账面市值比因子
-        # self.Rmrf, self.Smb, self.Hml = FamaFrench(self.Rmrf, self.Smb, self.Hml, self.returns, window=252)
-        # self.Rmrf.to_csv('data/Rmrf.csv')
-        # self.Smb.to_csv('data/Smb.csv')
-        # self.Hml.to_csv('data/Hml.csv')
+        self.Rmrf = df_data['Rmrf'] # 市场溢酬因子
+        self.Smb = df_data['Smb'] # 市值因子
+        self.Hml = df_data['Hml'] # 账面市值比因子
+
+        self.returns.to_csv('data/returns.csv')
+        self.market_return.to_csv('data/market_return.csv')
     
     # 因子1：基于 ROE 的波动性因子
     def alpha_ROE(self):
@@ -107,7 +102,7 @@ class ourAlphas(Alphas):
         3. 返回比例差的排名作为因子值。
         """
         # 计算收盘价与成交均价的差异
-        price_strength = -(self.close - self.vwap) / (self.vwap + 1e-5)
+        price_strength = (self.close.shift(-1) - self.vwap.shift(-1) ) / (self.vwap.shift(-1) + 1e-5)
 
         # 返回因子值
         return rank(price_strength)
@@ -216,20 +211,20 @@ class ourAlphas(Alphas):
         cumulative_return_1m = ts_sum(self.returns, 21)  # 计算过去 1 个月的累计收益
         return rank(cumulative_return_12m - cumulative_return_1m)  # 计算并排名
 
-    # 因子11：基于 CAPM 模型计算的 β 系数 (Beta Factor)
-    def alpha_beta(self):
-        """
-        alpha_beta: CAPM β 系数
-        逻辑：
-        1. 对股票收益率与市场收益率进行线性回归。
-        2. 提取回归斜率 β 作为因子值。
-        3. 对 β 进行排名，生成因子值。
-        公式：
-        beta = regression_slope(returns, market_returns)  # 计算线性回归的斜率β
-        alpha_beta = rank(beta)  # 对 β 系数进行排名
-        """
-        beta = capm_beta(self.returns, self.market_return, self.rf)  # 计算 β 系数
-        return rank(beta)  # 对 β 进行排名
+    # # 因子11：基于 CAPM 模型计算的 β 系数 (Beta Factor)
+    # def alpha_beta(self):
+    #     """
+    #     alpha_beta: CAPM β 系数
+    #     逻辑：
+    #     1. 对股票收益率与市场收益率进行线性回归。
+    #     2. 提取回归斜率 β 作为因子值。
+    #     3. 对 β 进行排名，生成因子值。
+    #     公式：
+    #     beta = regression_slope(returns, market_returns)  # 计算线性回归的斜率β
+    #     alpha_beta = rank(beta)  # 对 β 系数进行排名
+    #     """
+    #     beta = capm_beta(self.returns, self.market_return, self.rf)  # 计算 β 系数
+    #     return rank(beta)  # 对 β 进行排名
 
     # 因子12：月度换手率因子 (Turnover Factor)
     def alpha_turnover_month(self):
@@ -402,34 +397,114 @@ class ourAlphas(Alphas):
         market_alpha = ts_sum(self.returns - self.market_return, 20)
         return rank(market_alpha)
 
-    # 因子26：Rmrf 市场溢酬因子
-    def alpha_Rmrf(self):
-        """
-        alpha_Rmrf: Rmrf 市场溢酬因子
-        逻辑：
-        1. 计算市场溢酬因子 Rmrf 的排名值。
-        """
-        return rank(self.Rmrf)
+    # # 因子26：Rmrf 市场溢酬因子
+    # def alpha_Rmrf(self):
+    #     """
+    #     alpha_Rmrf: Rmrf 市场溢酬因子
+    #     逻辑：
+    #     1. 计算市场溢酬因子 Rmrf 的排名值。
+    #     """
+    #     return rank(self.Rmrf)
     
-    # 因子27：Smb 市值因子
-    def alpha_Smb(self):
-        """
-        alpha_Smb: Smb 市值因子
-        逻辑：
-        1. 计算市值因子 Smb 的排名值。
-        """
-        return rank(self.Smb)
+    # # 因子27：Smb 市值因子
+    # def alpha_Smb(self):
+    #     """
+    #     alpha_Smb: Smb 市值因子
+    #     逻辑：
+    #     1. 计算市值因子 Smb 的排名值。
+    #     """
+    #     return rank(self.Smb)
     
-    # 因子28：Hml 账面市值比因子
-    def alpha_Hml(self):
+    # # 因子28：Hml 账面市值比因子
+    # def alpha_Hml(self):
+    #     """
+    #     alpha_Hml: Hml 账面市值比因子
+    #     逻辑：
+    #     1. 计算账面市值比因子 Hml 的排名值。
+    #     """
+    #     return rank(self.Hml)
+    
+    # 因子29：Fama-French 三因子模型
+    def alpha_Fama_French(self):
         """
-        alpha_Hml: Hml 账面市值比因子
+        alpha_Fama_French: Fama-French 三因子模型
+        逻辑：
+        1. 计算 Fama-French 三因子模型的排名值。
+        """
+        alpha = self.returns - (self.Rmrf * (self.market_return - self.rf)  + self.Smb * self.size + self.Hml * self.bm) - self.rf
+        return rank(alpha)
+    
+    # 因子30：账面市值比因子
+    def alpha_bm(self):
+        """
+        alpha_bm: 账面市值比因子
         逻辑：
         1. 计算账面市值比因子 Hml 的排名值。
         """
-        return rank(self.Hml)
-        
-        
+        return rank(self.bm)
+    
+    # 因子31：换手率因子
+    def alpha_turnover(self):
+        """
+        alpha_turnover: 前一天换手率因子
+        逻辑：
+        1. 计算换手率的排名值。
+        """
+        return rank(self.turnover.shift(-1))
+    
+    # 因子32：成交量波动率因子
+    def alpha_CVD(self):
+        """
+        alpha_CVD: 成交量波动率因子
+        逻辑：
+        1. 计算成交量波动率的排名值。
+        """
+        return rank(self.cvd)
+    
+    # 因子33：每市值盈利因子
+    def alpha_EPQ(self):
+        """
+        alpha_EPQ: 每市值盈利因子
+        逻辑：
+        1. 计算每市值盈利的排名值。
+        """
+        return rank(self.epq)
+         
+    # 因子34：企业价值倍数因子
+    def alpha_EMQ(self):
+        """
+        alpha_EMQ: 企业价值倍数因子
+        逻辑：
+        1. 计算企业价值倍数的排名值。
+        """
+        return rank(self.emq)
+    
+    # 因子35：季度销售增长率因子
+    def alpha_SGQ(self):
+        """
+        alpha_SGQ: 季度销售增长率因子
+        逻辑：
+        1. 计算季度销售增长率的排名值。
+        """
+        return rank(self.sgq)
+    
+    # 因子36：流动资产占比因子
+    def alpha_ALAQ(self):
+        """
+        alpha_ALAQ: 流动资产占比因子
+        逻辑：
+        1. 计算流动资产占比的排名值。
+        """
+        return rank(self.alaq)
+    
+    # 因子37：季度利润率因子
+    def alpha_PMQ(self):
+        """
+        alpha_PMQ: 季度利润率因子
+        逻辑：
+        1. 计算季度利润率的排名值。
+        """
+        return rank(self.pmq)
         
 if __name__ == '__main__':
     year = '2013'

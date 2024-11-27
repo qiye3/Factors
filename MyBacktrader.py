@@ -20,9 +20,7 @@ printlog = False
 warnings.simplefilter(action='ignore', category=(FutureWarning, SettingWithCopyWarning))
 
 # 数据准备
-def prepare_data(year, start_date, end_date, alphaset, subset, alpha_name):
-
-    list_assets, df_assets = get_hs300_stocks(f'{year}-01-01')
+def prepare_data(year, start_date, end_date, alphaset, subset, alpha_name, list_assets):
 
     missing_assets = [
         "600005", "600068", "600432", "600832", 
@@ -200,9 +198,9 @@ class TestStrategy(bt.Strategy):
                             order.data._name))
 
 # 回测函数
-def backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset, strategy_name=TestStrategy):
+def backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset,list_assets, strategy_name=TestStrategy):
     # 准备数据
-    daily_price, trade_info, close = prepare_data(year, start_date, end_date, alphaset, subset, alpha_name)
+    daily_price, trade_info, close = prepare_data(year, start_date, end_date, alphaset, subset, alpha_name, list_assets)
     
     # 实例化大脑
     cerebro_ = bt.Cerebro() 
@@ -246,6 +244,7 @@ def backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset, str
 
     # 假设 strat.analyzers._TimeReturn.get_analysis() 已经返回了一个pandas Series对象
     ret = pd.Series(strat.analyzers._TimeReturn.get_analysis())
+    # ret.to_csv(f'results/{alpha_name}_TimeReturn.csv')
     
     ret1 = [alpha_name,  # 因子名称
            year,  # 年度'
@@ -290,7 +289,7 @@ def plot_alpha_results(alpha_name, output_dir, plot_results):
         output_dir (str): 图像保存路径
         plot_results (dict): 回测结果字典
     """
-    colors = ['skyblue', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
+    # colors = ['skyblue', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
     
     plt.figure(figsize=(12, 6))
     plt.title(f"{alpha_name} 的累积收益率")
@@ -299,7 +298,7 @@ def plot_alpha_results(alpha_name, output_dir, plot_results):
         
         # 计算累计收益率并绘图
         plot_result = (ret + 1).cumprod()
-        plot_result.plot(label=strategy.__name__, color=colors.pop(0))
+        plot_result.plot(label=strategy.__name__) #, color=colors.pop(0)
 
     # 保存图像
     output_path = f'{output_dir}/{alpha_name}.png'
@@ -320,9 +319,11 @@ if __name__ == "__main__":
     subset = '20130430'
     
     # alpha_names = get_alpha_list(f'alphas/{alphaset}/{subset}')
-    alpha_names = ['alpha001']
+    alpha_names = ['alpha_Fama_French']
     
     strategy_list = [TestStrategy]
+    
+    list_assets, df_assets = get_hs300_stocks(f'{year}-01-01')
 
     # 设置保存文件夹
     output_dir = "output_charts"
@@ -342,7 +343,7 @@ if __name__ == "__main__":
         
         for strategy in strategy_list:
             print(f"开始回测 {alpha_name}...的策略： {strategy.__name__}")
-            ret, ret1 = backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset, strategy)
+            ret, ret1 = backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset,list_assets, strategy)
             
             results.append(ret1) # 将回测结果添加到结果列表中
             plot_results[strategy] = ret # 将回测结果添加到绘图结果字典中
@@ -351,9 +352,9 @@ if __name__ == "__main__":
         print(f"回测 {alpha_name} 完成！")    
         
     
-    results = pd.DataFrame(results, columns = ['alpha','策略名称','年度', '收益率', '日均收益率', '年化收益率', '最大回撤(%)', '夏普比率'])
+    results = pd.DataFrame(results, columns = ['alpha','年度', '策略名称','收益率', '日均收益率', '年化收益率', '最大回撤(%)', '夏普比率'])
     
-    results.to_csv(f'{result_dir}/results.csv', index=False)
+    results.to_csv(f'{result_dir}/results_VMAP.csv', index=False)
     
     
     
