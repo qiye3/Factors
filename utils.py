@@ -6,6 +6,7 @@ from numpy import abs
 from numpy import log
 from numpy import sign
 import statsmodels.api as sm
+from tqdm import tqdm
 
 def returns(df):
     return df.rolling(2).apply(lambda x: x.iloc[-1] / x.iloc[0]) - 1
@@ -64,6 +65,15 @@ def covariance(x, y, window=10):
     :return: a pandas DataFrame with the time-series min over the past 'window' days.
     """
     return x.rolling(window).cov(y)
+
+def skewness(df, window=10):
+    """
+    Wrapper function to estimate rolling skewness.
+    :param df: a pandas DataFrame.
+    :param window: the rolling window.
+    :return: a pandas DataFrame with the time-series min over the past 'window' days.
+    """
+    return df.rolling(window).skew()
 
 def rolling_rank(na):
     """
@@ -248,3 +258,109 @@ def generate_all_dates(start_date, end_date):
     all_dates = pd.date_range(start=start_date, end=end_date, freq='B')
     return all_dates
 
+def FamaFrench(Rmrf, Smb, Hml, returns, window=252):
+    """
+    计算 Fama-French 三因子模型的滚动 beta。
+    可优化：可以使用rolling OLS来计算滚动beta。
+    
+    参数:
+        X (DataFrame): 因子数据，列包括 Rmrf, Smb, Hml。
+        returns (DataFrame): 资产收益数据。
+        window (int): 滚动窗口大小。
+        
+    返回:
+        Rmrf_beta, Smb_beta, Hml_beta: 每个因子对应的滚动 beta 值。
+    """
+    assets = returns.columns
+    dates = returns.index
+    Rmrf_beta = pd.DataFrame(index=dates, columns=assets)
+    Smb_beta = pd.DataFrame(index=dates, columns=assets)
+    Hml_beta = pd.DataFrame(index=dates, columns=assets)
+
+    # 滚动窗口回归
+    for asset in tqdm(assets):
+        for i in range(window, len(dates)):
+            # 提取滚动窗口数据
+            window_returns = returns.iloc[i-window:i, :][asset]
+            window_factors = pd.concat([Rmrf.iloc[i-window:i][asset],Smb.iloc[i-window:i][asset],Hml.iloc[i-window:i][asset]],axis=1)
+            window_factors.columns = ['Rmrf', 'Smb', 'Hml']
+            
+            # print("window_returns 的内容：", window_returns)
+            # print("window_factors 的内容：", window_factors)
+
+            # 清理数据：去除 NaN 和 Inf
+            combined = pd.concat([window_returns, window_factors], axis=1).dropna()
+            if combined.empty:
+                continue
+
+            window_returns_clean = combined.iloc[:, 0]
+            window_factors_clean = combined.iloc[:, 1:]
+
+            # 添加常数项
+            factors_with_const = sm.add_constant(window_factors_clean)
+
+            # 回归模型
+            model = sm.OLS(window_returns_clean, factors_with_const).fit()
+            
+            # print("model.params 的内容：", model.params)
+
+            # 提取 beta 值
+            Rmrf_beta.iloc[i, assets.get_loc(asset)] = model.params['Rmrf']
+            Smb_beta.iloc[i, assets.get_loc(asset)] = model.params['Smb']
+            Hml_beta.iloc[i, assets.get_loc(asset)] = model.params['Hml']
+            
+        # print("Rmrf_beta 的内容：", Rmrf_beta)
+
+    return Rmrf_beta, Smb_beta, Hml_beta
+
+def rolling_ols(y, X, window):
+    """
+    滚动 OLS 回归函数（示例）。
+    返回回归系数中的 β。
+    """
+    result = y.rolling(window).apply(
+        lambda y_window: sm.OLS(y_window, sm.add_constant(X.loc[y_window.index])).fit().params[1] 
+        if y_window.notnull().all() and X.loc[y_window.index].notnull().all()
+        else np.nan
+    )
+    return result      
+
+def capm_beta(returns, market_returns, rf_rate, window=252):
+    """
+    使用 rolling_ols 函数计算 CAPM β 系数。
+    
+    参数：
+        returns (pd.DataFrame): 股票收益率，列为股票代码，行为日期。
+        market_returns (pd.Series): 市场收益率（超额收益率）。
+        rf_rate (pd.Series): 无风险利率。
+        window (int): 滚动窗口大小。
+        
+    返回：
+        beta_factors (pd.DataFrame): 每只股票的滚动 β 系数，列为股票代码，行索引为日期。
+    """
+    rf_rate = pd.Series(rf_rate.iloc[:][0], index=returns.index)  # 无风险利率
+    # 股票超额收益率
+    excess_returns = returns.sub(rf_rate, axis=0)  # 每只股票的超额收益率
+    market_excess = market_returns - rf_rate       # 市场的超额收益率
+    
+    # 初始化结果表
+    beta_factors = pd.DataFrame(index=returns.index, columns=returns.columns)
+    
+    # 逐列计算每只股票的滚动 β 系数
+    for stock in returns.columns:
+        stock_returns = excess_returns[stock]
+        # 调用 rolling_ols
+        betas = rolling_ols(y=stock_returns, X=market_excess, window=window)
+        beta_factors[stock] = betas
+    
+    return beta_factors
+
+
+# 根据股票代码判断交易所
+def identify_exchange(code):
+    if str(code).startswith(('600', '601', '603', '688')):
+        return 0  # 上交所
+    elif str(code).startswith(('000', '002', '300')):
+        return 1  # 深交所
+    else:
+        return 2  # 其他交易所

@@ -29,6 +29,21 @@ class ourAlphas(Alphas):
         self.turnover = df_data['turnover'] # 换手率
         self.amount = df_data['amount'] # 成交额
         self.pctChg = df_data['pctChg'] # 涨跌幅
+        self.rf = df_data['rf'] # 无风险利率
+        
+        assets = self.returns.columns
+        dates = self.returns.index
+        self.Rmrf = pd.read_csv('data/Rmrf.csv', index_col=0).reindex(index=dates, columns=assets)
+        self.Smb = pd.read_csv('data/Smb.csv', index_col=0).reindex(index=dates, columns=assets)
+        self.Hml = pd.read_csv('data/Hml.csv', index_col=0).reindex(index=dates, columns=assets)
+
+        # self.Rmrf = df_data['Rmrf'] # 市场溢酬因子
+        # self.Smb = df_data['Smb'] # 市值因子
+        # self.Hml = df_data['Hml'] # 账面市值比因子
+        # self.Rmrf, self.Smb, self.Hml = FamaFrench(self.Rmrf, self.Smb, self.Hml, self.returns, window=252)
+        # self.Rmrf.to_csv('data/Rmrf.csv')
+        # self.Smb.to_csv('data/Smb.csv')
+        # self.Hml.to_csv('data/Hml.csv')
     
     # 因子1：基于 ROE 的波动性因子
     def alpha_ROE(self):
@@ -92,7 +107,7 @@ class ourAlphas(Alphas):
         3. 返回比例差的排名作为因子值。
         """
         # 计算收盘价与成交均价的差异
-        price_strength = (self.close - self.vwap) / (self.vwap + 1e-5)
+        price_strength = -(self.close - self.vwap) / (self.vwap + 1e-5)
 
         # 返回因子值
         return rank(price_strength)
@@ -213,11 +228,11 @@ class ourAlphas(Alphas):
         beta = regression_slope(returns, market_returns)  # 计算线性回归的斜率β
         alpha_beta = rank(beta)  # 对 β 系数进行排名
         """
-        beta = regression_slope(self.returns, self.market_return)  # 计算 CAPM β 系数
+        beta = capm_beta(self.returns, self.market_return, self.rf)  # 计算 β 系数
         return rank(beta)  # 对 β 进行排名
 
     # 因子12：月度换手率因子 (Turnover Factor)
-    def alpha_turnover(self):
+    def alpha_turnover_month(self):
         """
         alpha_turnover: 月度换手率因子
         逻辑：
@@ -274,7 +289,147 @@ class ourAlphas(Alphas):
         inner[self.returns < 0] = stddev(self.returns, 20)
         return rank(ts_argmax(inner ** 2, 5)) - 0.5
     
+    # 因子17：波动率偏度因子
+    def alpha_vol_skew(self):
+        """
+        alpha_vol_skew: 波动率偏度因子
+        逻辑：
+        1. 计算过去20天收益率的偏度，捕捉收益率分布的非对称性。
+        2. 通过对偏度值进行排名，生成因子值。
+        公式：
+        skew = (E[(returns - mean)^3]) / stddev(returns)^3
+        """
+        vol_skew = skewness(self.returns, 20)
+        return rank(vol_skew)
+
+    # 因子18：资金流动因子
+    def alpha_multi(self):
+        """
+        alpha_multi: 资金流动因子
+        逻辑：
+        1. 计算过去30天每日交易量与价格的乘积（近似资金流动）。
+        2. 对这些值进行排名，生成因子值。
+        公式：
+        liquidity = ts_sum(volume * close, 30)
+        alpha_multi = rank(liquidity)
+        """
+        liquidity = ts_sum(self.volume * self.close, 30)
+        return rank(liquidity)
     
+    # 因子19：市场情绪因子
+    def alpha_sentiment(self):
+        """
+        alpha_sentiment: 市场情绪因子
+        逻辑：
+        1. 计算过去20天的收益率标准差，反映市场波动性。
+        2. 对波动性进行排名，生成因子值。
+        公式：
+        alpha_sentiment = rank(stddev(returns, 20))
+        """
+        return rank(stddev(self.returns, 20))
+    
+    # 因子20：收益率动量因子：过去60天的累计收益率
+    def alpha_momentum_60(self):
+        """
+        alpha_momentum: 收益率动量因子
+        逻辑：
+        1. 计算过去60天的累计收益率。
+        2. 对累计收益率进行排名，捕捉长期收益趋势。
+        公式：
+        momentum = ts_sum(returns, 60)
+        alpha_momentum = rank(momentum)
+        """
+        return rank(ts_sum(self.returns, 60))
+    
+    # 因子21:交易密度因子
+    def alpha_trade_density(self):
+        """
+        alpha_trade_density: 交易密度因子
+        逻辑：
+        1. 计算过去20天的交易量均值。
+        2. 对交易量均值进行排名，生成因子值。
+        公式：
+        alpha_trade_density = rank(mean(volume, 20))
+        """
+        return rank(mean(self.volume, 20))
+
+    # 因子22:十天换手率因子
+    def alpha_turnover_10(self):
+        """
+        alpha_turnover_10: 十天换手率因子
+        逻辑：
+        1. 计算过去10天的换手率。
+        2. 对换手率进行排名，生成因子值。
+        公式：
+        alpha_turnover_10 = rank(turnover)
+        """
+        return rank(mean(self.turnover, 10))
+    
+    # 因子23：财务健康因子
+    def alpha_financial_health(self):
+        """
+        alpha_financial_health: 财务健康因子
+        逻辑：
+        1. 计算现金占比（CTA）和流动资产占比（ALAQ）的加权平均值。
+        2. 对健康因子值进行排名。
+        """
+        financial_health = 0.5 * self.cta + 0.5 * self.alaq
+        return rank(financial_health)
+    
+    # 因子24：相对强度因子
+    def alpha_rsi(self):
+        """
+        alpha_rsi: 相对强度因子
+        逻辑：
+        1. 计算过去14天价格的 RSI 指标。
+        2. 通过排名生成因子值。
+        """
+        gains = np.maximum(self.returns, 0)
+        losses = np.abs(np.minimum(self.returns, 0))
+        avg_gain = mean(gains, 14)
+        avg_loss = mean(losses, 14)
+        rsi = 100 - (100 / (1 + avg_gain / avg_loss))
+        return rank(rsi)
+    
+    # 因子25：阿尔法市场因子
+    def alpha_market_alpha(self):
+        """
+        alpha_market_alpha: 阿尔法市场因子
+        逻辑：
+        1. 计算个股日收益率与市场收益率的差值。
+        2. 对差值进行累计，并对因子值进行排名。
+        """
+        market_alpha = ts_sum(self.returns - self.market_return, 20)
+        return rank(market_alpha)
+
+    # 因子26：Rmrf 市场溢酬因子
+    def alpha_Rmrf(self):
+        """
+        alpha_Rmrf: Rmrf 市场溢酬因子
+        逻辑：
+        1. 计算市场溢酬因子 Rmrf 的排名值。
+        """
+        return rank(self.Rmrf)
+    
+    # 因子27：Smb 市值因子
+    def alpha_Smb(self):
+        """
+        alpha_Smb: Smb 市值因子
+        逻辑：
+        1. 计算市值因子 Smb 的排名值。
+        """
+        return rank(self.Smb)
+    
+    # 因子28：Hml 账面市值比因子
+    def alpha_Hml(self):
+        """
+        alpha_Hml: Hml 账面市值比因子
+        逻辑：
+        1. 计算账面市值比因子 Hml 的排名值。
+        """
+        return rank(self.Hml)
+        
+        
         
 if __name__ == '__main__':
     year = '2013'

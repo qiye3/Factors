@@ -2,6 +2,7 @@ import pandas as pd
 import numpy as np
 import os
 from tqdm import tqdm
+from utils import identify_exchange, FamaFrench
 
 # 将path下的所有表格合并到一个表格中
 def merge_sheet(path, output_file='data/merged_sheet.csv'):
@@ -65,6 +66,15 @@ def merge_features():
     data['日期'] = pd.to_datetime(data['日期'])
     
     stock_list = [f for f in os.listdir('data_bfq') if f.endswith('.csv')]
+    # stock_list = ['000001.csv']
+    
+    # 读取Fama-French三因子数据:该数据来自RESSET数据库
+    ff_data = pd.read_csv('index/Fama_French.csv')
+    # 读取无风险利率数据
+    rf_data = pd.read_csv('index/Shibor_Overnight.csv')
+
+    ff_data['日期'] = pd.to_datetime(ff_data['日期'], errors='coerce')
+    rf_data['日期'] = pd.to_datetime(rf_data['日期'], errors='coerce')
 
     merged_results = []
     
@@ -76,11 +86,16 @@ def merge_features():
 
             stock_data['日期'] = pd.to_datetime(stock_data['日期'].str.strip())  # 清理列名并转换日期
             stock_data = stock_data.sort_values('日期')
+            
+            stock_data['交易所标识_Exchflg'] = stock_data['股票代码'].apply(identify_exchange)
+            
+            stock_data = pd.merge(stock_data, ff_data, on=['日期', '交易所标识_Exchflg'], how='left')
+            stock_data = pd.merge(stock_data, rf_data, on='日期', how='left')
 
             stock_quarter_data = data[data['股票代码'] == stock_data['股票代码'].iloc[0]]
             if stock_quarter_data.empty:
                 # print(f"警告：股票代码 {stock_data['股票代码'].iloc[0]} 在季度数据中没有对应记录。")
-                lost_stock.append(stock)
+                lost_stock.append(stock.split('.')[0])
                 continue
 
             # 按日期将季度数据映射到日度数据
@@ -91,6 +106,9 @@ def merge_features():
                 direction='forward'
             )
             merged_results.append(merged_stock_data)
+
+            merged_stock_data.drop(columns=['交易所标识_Exchflg', '市场标识_Mktflg', 'xuhao', '涨跌', '市场溢酬因子__总市值加权_Rmrf_mc', '市值因子__总市值加权_Smb_mc', '账面市值比因子__总市值加权_Hml_mc'], inplace=True)
+            
             merged_stock_data.to_csv(f'data_merged/{stock}', index=False, encoding='utf-8-sig')
             
         except KeyError as e:

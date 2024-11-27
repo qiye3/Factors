@@ -91,6 +91,7 @@ def get_zz500_stocks(time):
     bs.logout()
     return lists, result
 
+# 获取沪深300成分股
 def get_hs300_stocks(time):
     # 登陆系统
     lg = bs.login()
@@ -117,6 +118,7 @@ def get_hs300_stocks(time):
     bs.logout()
     return lists, result
 
+# 下载指数数据
 def download_index_data(code):
     path = 'index'
     stock_zh_index_daily_df = ak.stock_zh_index_daily(symbol=code)
@@ -125,7 +127,7 @@ def download_index_data(code):
         os.makedirs(path)
     stock_zh_index_daily_df.to_csv(f'{path}/{code}.csv')
 
-
+# 生成季度日期列表
 def generate_quarterly_dates(start_date, end_date):
     """
     生成从 start_date 到 end_date 的季度日期列表。
@@ -178,7 +180,8 @@ def download_balance_sheet_data(start_date, end_date):
         except Exception as e:
             print(f"下载 {date} 的资产负债表数据失败！")
             print(e) 
-            
+
+# 下载现金流量表数据            
 def download_cash_flow_data(start_date, end_date):
     """
     下载指定时间范围内的现金流量表数据，并分别保存为 CSV 文件。
@@ -201,6 +204,24 @@ def download_cash_flow_data(start_date, end_date):
             print(f"下载 {date} 的现金流量表数据失败！")
             print(e)
 
+# 下载无风险利率数据
+def download_risk_free_rate(start_date, end_date):
+    """
+    下载指定时间范围内的无风险利率数据，并保存为 CSV 文件。
+    """
+    path = 'index'
+    if not os.path.isdir(path):
+        os.makedirs(path)
+
+    try:
+        # 隔夜拆借利率
+        data = ak.rate_interbank(market="上海银行同业拆借市场", symbol="Shibor人民币", indicator='隔夜')
+        data.rename(columns={'报告日': '日期', '利率':'无风险利率'}, inplace=True)
+        data.to_csv(f'{path}/Shibor_Overnight.csv')
+        
+    except Exception as e:
+        print(f"下载无风险利率数据失败！")
+        print(e)
 
 if __name__ == '__main__':
     start_date = '20090101'
@@ -210,3 +231,5 @@ if __name__ == '__main__':
     download_profit_sheet_data(start_date, end_date)
     download_balance_sheet_data(start_date, end_date)
     download_cash_flow_data(start_date, end_date)
+    download_risk_free_rate(start_date, end_date)
+    

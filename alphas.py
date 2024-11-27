@@ -104,13 +104,18 @@ class Alphas(object):
             "成交额": "amount",
             "涨跌幅": "pctChg",
             "换手率": "turnover", 
-            "市值": "size"})
+            "市值": "size",
+            "市场溢酬因子__流通市值加权_Rmrf_tmv":"Rmrf",
+            "市值因子__流通市值加权_Smb_tmv":"Smb",
+            "账面市值比因子__流通市值加权_Hml_tmv":"Hml",
+            "无风险利率": "rf"
+            })
         df_all['turnover']  = df_all['turnover']/100
         df_all['vwap'] =  df_all.amount / df_all.volume / 100 # 计算平均成交价
 
         # 返回计算因子需要的列
         df_all = df_all.reset_index()
-        df_all = df_all[['asset', 'date', "open", "close", "high", "low", "volume", "amount", 'vwap', "pctChg", 'turnover', 'benchmark_open', 'benchmark_close', 'benchmark_high', 'benchmark_low', 'benchmark_vol', 'roe', 'roa', 'cvd', 'epq', 'emq', 'sgq', 'alaq', 'pmq', 'cta', 'size']]
+        df_all = df_all[['asset', 'date', "open", "close", "high", "low", "volume", "amount", 'vwap', "pctChg", 'turnover', 'benchmark_open', 'benchmark_close', 'benchmark_high', 'benchmark_low', 'benchmark_vol', 'roe', 'roa', 'cvd', 'epq', 'emq', 'sgq', 'alaq', 'pmq', 'cta', 'size', 'Rmrf', 'Smb', 'Hml', 'rf']]
         # ddu = df_all[df_all.duplicated()]
         df_all=df_all[df_all['asset'].notnull()]
         

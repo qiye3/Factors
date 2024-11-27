@@ -11,6 +11,7 @@ import matplotlib.pyplot as plt
 from alphalens.utils import compute_forward_returns, get_clean_factor
 import pandas as pd
 import matplotlib
+from tqdm import tqdm
 matplotlib.use('Agg')  # 使用非交互式后端
 matplotlib.rcParams['font.family'] = 'SimHei'
 
@@ -199,7 +200,7 @@ class TestStrategy(bt.Strategy):
                             order.data._name))
 
 # 回测函数
-def backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset, output_dir):
+def backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset, strategy_name=TestStrategy):
     # 准备数据
     daily_price, trade_info, close = prepare_data(year, start_date, end_date, alphaset, subset, alpha_name)
     
@@ -224,7 +225,7 @@ def backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset, out
     cerebro.broker.setcash(100000.0) 
     # cerebro.broker.setcommission(commission=0.0015)
     # 添加策略
-    cerebro.addstrategy(TestStrategy, buy_stocks=trade_info) # 通过修改参数 buy_stocks ，使用同一策略回测不同的持仓列表
+    cerebro.addstrategy(strategy=strategy_name, buy_stocks=trade_info) # 通过修改参数 buy_stocks ，使用同一策略回测不同的持仓列表
 
     # 添加分析指标
     # 返回年初至年末的年度收益率
@@ -245,28 +246,17 @@ def backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset, out
 
     # 假设 strat.analyzers._TimeReturn.get_analysis() 已经返回了一个pandas Series对象
     ret = pd.Series(strat.analyzers._TimeReturn.get_analysis())
-    # 计算累计收益率并绘图
-    plt.figure(figsize=(12, 6))
-    ((ret + 1).cumprod()).plot()
-    plt.title(f'{alpha_name}的累计收益率')
-
-    # 保存图像
-    output_path = f'{output_dir}/{alpha_name}.png'
-    plt.savefig(output_path)
-    print(f"图像已保存到: {output_path}")
-
-    # 清理图像，避免内存问题
-    plt.clf()
     
-    ret = [alpha_name,  # 因子名称
-           year,  # 年度
+    ret1 = [alpha_name,  # 因子名称
+           year,  # 年度'
+           strategy_name.__name__,  # 策略名称
            strat.analyzers._Returns.get_analysis()['rtot'],  # 收益率
            strat.analyzers._Returns.get_analysis()['ravg'],  # 日均收益率
            strat.analyzers._Returns.get_analysis()['rnorm'],  # 年化收益率
            strat.analyzers._DrawDown.get_analysis()['max']['drawdown'] * (-1), # 最大回撤 
            strat.analyzers._SharpeRatio.get_analysis()['sharperatio']] # 夏普比率
     
-    return ret
+    return ret, ret1
 
 def get_alpha_list(directory):
     """
@@ -291,6 +281,34 @@ def get_alpha_list(directory):
         print(f"发生错误: {e}")
         return []
 
+def plot_alpha_results(alpha_name, output_dir, plot_results):
+    """
+    绘制因子回测结果的图像，并保存到指定文件夹中。
+
+    参数:
+        alpha_name (str): 因子名称
+        output_dir (str): 图像保存路径
+        plot_results (dict): 回测结果字典
+    """
+    colors = ['skyblue', 'g', 'r', 'c', 'm', 'y', 'k', 'w']
+    
+    plt.figure(figsize=(12, 6))
+    plt.title(f"{alpha_name} 的累积收益率")
+    
+    for strategy, ret in plot_results.items():
+        
+        # 计算累计收益率并绘图
+        plot_result = (ret + 1).cumprod()
+        plot_result.plot(label=strategy.__name__, color=colors.pop(0))
+
+    # 保存图像
+    output_path = f'{output_dir}/{alpha_name}.png'
+    plt.savefig(output_path)
+    print(f"图像已保存到: {output_path}")
+
+    # 清理图像，避免内存问题
+    plt.clf()
+
 
 # 主程序
 if __name__ == "__main__":
@@ -301,20 +319,39 @@ if __name__ == "__main__":
     alphaset = 'ourAlphas'
     subset = '20130430'
     
-    alpha_names = get_alpha_list(f'alphas/{alphaset}/{subset}')
+    # alpha_names = get_alpha_list(f'alphas/{alphaset}/{subset}')
+    alpha_names = ['alpha001']
+    
+    strategy_list = [TestStrategy]
 
     # 设置保存文件夹
     output_dir = "output_charts"
     result_dir = "results"
     
+    # 如果文件夹不存在，则创建文件夹
+    if not os.path.exists(output_dir):
+        os.makedirs(output_dir)
+    if not os.path.exists(result_dir):
+        os.makedirs(result_dir)
+    
     results = []
+
+    for alpha_name in tqdm(alpha_names):
+        
+        plot_results = {}
+        
+        for strategy in strategy_list:
+            print(f"开始回测 {alpha_name}...的策略： {strategy.__name__}")
+            ret, ret1 = backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset, strategy)
+            
+            results.append(ret1) # 将回测结果添加到结果列表中
+            plot_results[strategy] = ret # 将回测结果添加到绘图结果字典中
+            
+        plot_alpha_results(alpha_name, output_dir, plot_results)
+        print(f"回测 {alpha_name} 完成！")    
+        
     
-    for alpha_name in alpha_names:
-        print(f"正在回测 {alpha_name}")
-        ret = backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset, output_dir)
-        results.append(ret)
-    
-    results = pd.DataFrame(results, columns = ['alpha', '年度', '收益率', '日均收益率', '年化收益率', '最大回撤(%)', '夏普比率'])
+    results = pd.DataFrame(results, columns = ['alpha','策略名称','年度', '收益率', '日均收益率', '年化收益率', '最大回撤(%)', '夏普比率'])
     
     results.to_csv(f'{result_dir}/results.csv', index=False)
     
