@@ -357,7 +357,7 @@ if __name__ == "__main__":
     
     results = pd.DataFrame(results, columns = ['alpha','年度', '策略名称','收益率', '日均收益率', '年化收益率', '最大回撤(%)', '夏普比率'])
     
-    results.to_csv(f'{result_dir}/results_2018.csv', index=False)
+    results.to_csv(f'{result_dir}/results_xgb.csv', index=False)
     
     
     
