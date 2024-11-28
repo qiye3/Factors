@@ -25,7 +25,8 @@ def prepare_data(year, start_date, end_date, alphaset, subset, alpha_name, list_
     missing_assets = [
         "600005", "600068", "600432", "600832", 
         "601268", "601299", "601558", 
-        "000024", "000527", "000562", "000780"
+        "000024", "000527", "000562", "000780", 
+        "600102", "600631", "600087", # 2011年添加上去的
     ]
 
     # 生成完整的交易日索引
@@ -311,15 +312,17 @@ def plot_alpha_results(alpha_name, output_dir, plot_results):
 
 # 主程序
 if __name__ == "__main__":
-    year = 2016
-    start_date = '2016-04-30'
-    end_date = '2020-04-30'
+    year = 2018
+    start_date = '2018-04-30'
+    end_date = '2023-04-30'
     
-    alphaset = 'ourAlphas'
-    subset = '20130430'
+    # alphaset = 'ourAlphas'
+    subset = '20110430'
     
-    # alpha_names = get_alpha_list(f'alphas/{alphaset}/{subset}')
-    alpha_names = ['alpha_Fama_French']
+    alphaset = 'multialpha'
+    
+    alpha_names = get_alpha_list(f'alphas/{alphaset}/{subset}')
+    alpha_names = ['alpha_isXgb_True']
     
     strategy_list = [TestStrategy]
     
@@ -354,7 +357,7 @@ if __name__ == "__main__":
     
     results = pd.DataFrame(results, columns = ['alpha','年度', '策略名称','收益率', '日均收益率', '年化收益率', '最大回撤(%)', '夏普比率'])
     
-    results.to_csv(f'{result_dir}/results_VMAP.csv', index=False)
+    results.to_csv(f'{result_dir}/results_2018.csv', index=False)
     
     
     

@@ -507,9 +507,9 @@ class ourAlphas(Alphas):
         return rank(self.pmq)
         
 if __name__ == '__main__':
-    year = '2013'
-    start_date = '20130430'
-    end_date = '20220430'
+    year = '2011'
+    start_date = '20110430'
+    end_date = '20230430'
     
     list_assets,df_asserts = get_hs300_stocks(f"{year}-01-01")
 
