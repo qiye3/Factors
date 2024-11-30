@@ -322,14 +322,14 @@ if __name__ == "__main__":
     alphaset = 'multialpha'
     
     alpha_names = get_alpha_list(f'alphas/{alphaset}/{subset}')
-    alpha_names = ['alpha_isXgb_True']
+    alpha_names = ['alpha_ch3', 'alpha_famafrench']
     
     strategy_list = [TestStrategy]
     
     list_assets, df_assets = get_hs300_stocks(f'{year}-01-01')
 
     # 设置保存文件夹
-    output_dir = "output_charts"
+    output_dir = "output_charts/multi/"
     result_dir = "results"
     
     # 如果文件夹不存在，则创建文件夹
@@ -357,7 +357,7 @@ if __name__ == "__main__":
     
     results = pd.DataFrame(results, columns = ['alpha','年度', '策略名称','收益率', '日均收益率', '年化收益率', '最大回撤(%)', '夏普比率'])
     
-    results.to_csv(f'{result_dir}/results_xgb.csv', index=False)
+    results.to_csv(f'{result_dir}/results_2012_2023_multi.csv', index=False)
     
     
     
