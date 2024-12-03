@@ -258,35 +258,30 @@ def generate_all_dates(start_date, end_date):
     all_dates = pd.date_range(start=start_date, end=end_date, freq='B')
     return all_dates
 
-def FamaFrench(Rmrf, Smb, Hml, returns, window=252):
+def rollingCH3(size, ep, turnover, extrareturn, returns, window=252):
     """
-    计算 Fama-French 三因子模型的滚动 beta。
+    计算 CH3 三因子模型的滚动 beta。
     可优化：可以使用rolling OLS来计算滚动beta。
     
     参数:
-        X (DataFrame): 因子数据，列包括 Rmrf, Smb, Hml。
+        X (DataFrame): 因子数据，列包括 size, ep, turnover, extrareturn。
         returns (DataFrame): 资产收益数据。
         window (int): 滚动窗口大小。
         
     返回:
-        Rmrf_beta, Smb_beta, Hml_beta: 每个因子对应的滚动 beta 值。
+        预测值 DataFrame，列为资产代码，行为日期。
     """
     assets = returns.columns
     dates = returns.index
-    Rmrf_beta = pd.DataFrame(index=dates, columns=assets)
-    Smb_beta = pd.DataFrame(index=dates, columns=assets)
-    Hml_beta = pd.DataFrame(index=dates, columns=assets)
+    preds = pd.DataFrame(index=dates, columns=assets)
 
     # 滚动窗口回归
     for asset in tqdm(assets):
         for i in range(window, len(dates)):
             # 提取滚动窗口数据
             window_returns = returns.iloc[i-window:i, :][asset]
-            window_factors = pd.concat([Rmrf.iloc[i-window:i][asset],Smb.iloc[i-window:i][asset],Hml.iloc[i-window:i][asset]],axis=1)
+            window_factors = pd.concat([size.iloc[i-window:i][asset],ep.iloc[i-window:i][asset],turnover.iloc[i-window:i][asset]], extrareturn.iloc[i-window:i][asset],axis=1)
             window_factors.columns = ['Rmrf', 'Smb', 'Hml']
-            
-            # print("window_returns 的内容：", window_returns)
-            # print("window_factors 的内容：", window_factors)
 
             # 清理数据：去除 NaN 和 Inf
             combined = pd.concat([window_returns, window_factors], axis=1).dropna()
@@ -301,29 +296,22 @@ def FamaFrench(Rmrf, Smb, Hml, returns, window=252):
 
             # 回归模型
             model = sm.OLS(window_returns_clean, factors_with_const).fit()
-            
-            # print("model.params 的内容：", model.params)
 
-            # 提取 beta 值
-            Rmrf_beta.iloc[i, assets.get_loc(asset)] = model.params['Rmrf']
-            Smb_beta.iloc[i, assets.get_loc(asset)] = model.params['Smb']
-            Hml_beta.iloc[i, assets.get_loc(asset)] = model.params['Hml']
-            
-        # print("Rmrf_beta 的内容：", Rmrf_beta)
+            preds.loc[dates[i], asset] = model.predict([1, size.iloc[i][asset], ep.iloc[i][asset], turnover.iloc[i][asset]])[0]
 
-    return Rmrf_beta, Smb_beta, Hml_beta
+    return preds
 
 def rolling_ols(y, X, window):
     """
-    滚动 OLS 回归函数（示例）。
-    返回回归系数中的 β。
+    滚动 OLS 回归函数。
+    返回预测值（即预测的 y 值）。
     """
     result = y.rolling(window).apply(
-        lambda y_window: sm.OLS(y_window, sm.add_constant(X.loc[y_window.index])).fit().params[1] 
+        lambda y_window: sm.OLS(y_window, sm.add_constant(X.loc[y_window.index])).fit().predict(sm.add_constant(X.loc[y_window.index])) 
         if y_window.notnull().all() and X.loc[y_window.index].notnull().all()
         else np.nan
     )
-    return result      
+    return result    
 
 def capm_beta(returns, market_returns, rf_rate, window=252):
     """
@@ -354,7 +342,6 @@ def capm_beta(returns, market_returns, rf_rate, window=252):
         beta_factors[stock] = betas
     
     return beta_factors
-
 
 # 根据股票代码判断交易所
 def identify_exchange(code):

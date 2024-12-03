@@ -1,3 +1,4 @@
+import sys
 import backtrader as bt
 import pandas as pd
 import numpy as np
@@ -18,6 +19,15 @@ matplotlib.rcParams['font.family'] = 'SimHei'
 printlog = False
 
 warnings.simplefilter(action='ignore', category=(FutureWarning, SettingWithCopyWarning))
+
+# 将标准输出重定向到文件
+def redirect_output_to_file(logfile="output.log"):
+    # 打开文件以写入日志
+    sys.stdout = open(logfile, 'a', buffering=1, encoding='utf-8')
+
+# 恢复标准输出到终端
+def restore_output():
+    sys.stdout = sys.__stdout__
 
 # 数据准备
 def prepare_data(year, start_date, end_date, alphaset, subset, alpha_name, list_assets):
@@ -93,6 +103,8 @@ def prepare_data(year, start_date, end_date, alphaset, subset, alpha_name, list_
     trade_info = ret.rename(columns={""
             "date": "trade_date", 
             "asset": "sec_code"})
+    
+    trade_info = trade_info.sort_values(by="trade_date", ascending=True)
 
     return daily_price, trade_info, close
 
@@ -122,17 +134,20 @@ class TestStrategy(bt.Strategy):
         # 打印当前时刻的总资产
         if(printlog):
             self.log('当前总资产 %.2f' %(self.broker.getvalue()))
+            # self.log('Current Total asset %.2f' %(self.broker.getvalue()))
         # 如果是调仓日，则进行调仓操作
         
         dt = pd.Timestamp(dt)
         
         if dt in self.trade_dates:
             if(printlog):
+                # print(f"--------------{dt} The day for rebalancing----------")
                 print(f"--------------{dt} 为调仓日----------")
             
             #取消之前所下的没成交也未到期的订单
             if len(self.order_list) > 0:
                 if(printlog):
+                    # print("--------------- Cancel Orders that not completed -----------------")
                     print("--------------- 撤销未完成的订单 -----------------")
                 for od in self.order_list:
                     # 如果订单未完成，则撤销订单
@@ -143,17 +158,23 @@ class TestStrategy(bt.Strategy):
             # 提取当前调仓日的持仓列表
             buy_stocks_data = self.buy_stock.query(f"trade_date=='{dt}'")
             long_list = buy_stocks_data['sec_code'].tolist()
+            
             if(printlog):
+                print("-----------------当前调仓日的持仓列表-----------------")
                 print('long_list', long_list)  # 打印持仓列表
+                # print('long_list', long_list)  # 打印持仓列表
 
             # 对现有持仓中，调仓后不再继续持有的股票进行卖出平仓
             sell_stock = [i for i in self.buy_stocks_pre if i not in long_list]
             if(printlog):
+                # print('sell_stock', sell_stock)
+                print('-----------------对不再持有的股票进行平仓-----------------')
                 print('sell_stock', sell_stock)
             
             if sell_stock:
-                if(printlog):
-                    print("-----------对不再持有的股票进行平仓--------------")
+                # if(printlog):
+                    # print("-----------Close out positions in stocks you no longer hold--------------")
+                    # print("-----------对不再持有的股票进行平仓--------------")
                 for stock in sell_stock:
                     data = self.getdatabyname(stock)
                     if self.getposition(data).size > 0 :
@@ -162,6 +183,7 @@ class TestStrategy(bt.Strategy):
 
             # 买入此次调仓的股票：多退少补原则
             if(printlog):
+                # print("-----------Buy stocks during this rebalancing period ---------------")
                 print("-----------买入此次调仓期的股票--------------")
             for stock in long_list:
                 w = buy_stocks_data.query(f"sec_code=='{stock}'")['weight'].iloc[0] # 提取持仓权重
@@ -312,8 +334,8 @@ def plot_alpha_results(alpha_name, output_dir, plot_results):
 
 # 主程序
 if __name__ == "__main__":
-    year = 2018
-    start_date = '2018-04-30'
+    year = 2012
+    start_date = '2012-04-30'
     end_date = '2023-04-30'
     
     # alphaset = 'ourAlphas'
@@ -329,8 +351,11 @@ if __name__ == "__main__":
     list_assets, df_assets = get_hs300_stocks(f'{year}-01-01')
 
     # 设置保存文件夹
-    output_dir = "output_charts/multi/"
+    output_dir = "output_charts/"
     result_dir = "results"
+    
+    # redirect_output_to_file()
+    restore_output()
     
     # 如果文件夹不存在，则创建文件夹
     if not os.path.exists(output_dir):
@@ -357,7 +382,7 @@ if __name__ == "__main__":
     
     results = pd.DataFrame(results, columns = ['alpha','年度', '策略名称','收益率', '日均收益率', '年化收益率', '最大回撤(%)', '夏普比率'])
     
-    results.to_csv(f'{result_dir}/results_2012_2023_multi.csv', index=False)
+    results.to_csv(f'{result_dir}/results_2012_2023_multi2.csv', index=False)
     
     
     

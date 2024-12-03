@@ -397,32 +397,32 @@ class ourAlphas(Alphas):
     #     market_alpha = ts_sum(self.returns - self.market_return, 20)
     #     return rank(market_alpha)
 
-    # # # 因子26：Rmrf 市场溢酬因子
-    # # def alpha_Rmrf(self):
-    # #     """
-    # #     alpha_Rmrf: Rmrf 市场溢酬因子
-    # #     逻辑：
-    # #     1. 计算市场溢酬因子 Rmrf 的排名值。
-    # #     """
-    # #     return rank(self.Rmrf)
+    # # 因子26：Rmrf 市场溢酬因子
+    # def alpha_Rmrf(self):
+    #     """
+    #     alpha_Rmrf: Rmrf 市场溢酬因子
+    #     逻辑：
+    #     1. 计算市场溢酬因子 Rmrf 的排名值。
+    #     """
+    #     return rank(self.Rmrf)
     
-    # # # 因子27：Smb 市值因子
-    # # def alpha_Smb(self):
-    # #     """
-    # #     alpha_Smb: Smb 市值因子
-    # #     逻辑：
-    # #     1. 计算市值因子 Smb 的排名值。
-    # #     """
-    # #     return rank(self.Smb)
+    # # 因子27：Smb 市值因子
+    # def alpha_Smb(self):
+    #     """
+    #     alpha_Smb: Smb 市值因子
+    #     逻辑：
+    #     1. 计算市值因子 Smb 的排名值。
+    #     """
+    #     return rank(self.Smb)
     
-    # # # 因子28：Hml 账面市值比因子
-    # # def alpha_Hml(self):
-    # #     """
-    # #     alpha_Hml: Hml 账面市值比因子
-    # #     逻辑：
-    # #     1. 计算账面市值比因子 Hml 的排名值。
-    # #     """
-    # #     return rank(self.Hml)
+    # # 因子28：Hml 账面市值比因子
+    # def alpha_Hml(self):
+    #     """
+    #     alpha_Hml: Hml 账面市值比因子
+    #     逻辑：
+    #     1. 计算账面市值比因子 Hml 的排名值。
+    #     """
+    #     return rank(self.Hml)
     
     # # 因子29：Fama-French 三因子模型
     # def alpha_Fama_French(self):
@@ -506,24 +506,41 @@ class ourAlphas(Alphas):
     #     """
     #     return rank(self.pmq)
         
-    # 因子38：Rmrf 市场溢酬因子
-    def alpha_Rmrf(self):
-        """
-        alpha_Rmrf: Rmrf 市场溢酬因子
-        逻辑：
-        1. 计算市场溢酬因子 Rmrf 的排名值。
-        """
-        rmrf = self.market_return - self.rf
-        return rank(rmrf)
+    # # 因子38：Rmrf 市场溢酬因子
+    # def alpha_Rmrf(self):
+    #     """
+    #     alpha_Rmrf: Rmrf 市场溢酬因子
+    #     逻辑：
+    #     1. 计算市场溢酬因子 Rmrf 的排名值。
+    #     """
+    #     rmrf = self.market_return - self.rf
+    #     return rank(rmrf)
     
-    # 因子39: ep 每股收益
-    def alpha_EP(self):
+    # # 因子39: ep 每股收益
+    # def alpha_EP(self):
+    #     """
+    #     alpha_EP: 每股收益因子
+    #     逻辑：
+    #     1. 计算每股收益的排名值。
+    #     """
+    #     return rank(self.ep)
+    
+    # 因子40：CH3
+    def alpha_CH3(self):
         """
-        alpha_EP: 每股收益因子
+        alpha_CH3: CH3 因子
         逻辑：
-        1. 计算每股收益的排名值。
+        1. 计算 CH3 因子的排名值。
         """
-        return rank(self.ep)
+        self.extrareturn = self.market_return - self.rf
+        
+        print(type(self.ep))
+        
+        X = pd.concat([self.size, self.ep, self.turnover, self.extrareturn], axis=1)
+        
+        y = self.returns - self.rf
+        pred = rolling_ols(y, X, 252)
+        return rank(pred)
     
 if __name__ == '__main__':
     year = '2011'
