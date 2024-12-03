@@ -534,18 +534,16 @@ class ourAlphas(Alphas):
         """
         self.extrareturn = self.market_return - self.rf
         
-        indexs = self.returns.index
-        columns = self.returns.columns
+        dates = self.returns.index
+        assets = self.returns.columns
         
-        X = pd.DataFrame(index=indexs, columns=columns)
-        
-        X['size'] = self.size
-        X['ep'] = self.ep
-        X['turnover'] = self.turnover
-        X['extrareturn'] = self.extrareturn
+        size = pd.read_csv('alphas/ourAlphas/20110430/alpha_size.csv', index_col=0).reindex(index=dates, columns=assets)
+        ep = pd.read_csv('alphas/ourAlphas/20110430/alpha_EP.csv', index_col=0).reindex(index=dates, columns=assets)
+        turnover = pd.read_csv('alphas/ourAlphas/20110430/alpha_turnover.csv', index_col=0).reindex(index=dates, columns=assets)
+        Rmrf = pd.read_csv('alphas/ourAlphas/20110430/alpha_Rmrf.csv', index_col=0).reindex(index=dates, columns=assets)
         
         y = self.returns - self.rf
-        pred = rolling_ols(y, X, 252)
+        pred = rollingCH3(size, ep, turnover, Rmrf, y)
         return rank(pred)
     
 if __name__ == '__main__':

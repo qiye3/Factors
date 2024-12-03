@@ -258,7 +258,7 @@ def generate_all_dates(start_date, end_date):
     all_dates = pd.date_range(start=start_date, end=end_date, freq='B')
     return all_dates
 
-def rollingCH3(size, ep, turnover, extrareturn, returns, window=252):
+def rollingCH3(size, ep, turnover, mkt, returns, window=252):
     """
     计算 CH3 三因子模型的滚动 beta。
     可优化：可以使用rolling OLS来计算滚动beta。
@@ -280,8 +280,8 @@ def rollingCH3(size, ep, turnover, extrareturn, returns, window=252):
         for i in range(window, len(dates)):
             # 提取滚动窗口数据
             window_returns = returns.iloc[i-window:i, :][asset]
-            window_factors = pd.concat([size.iloc[i-window:i][asset],ep.iloc[i-window:i][asset],turnover.iloc[i-window:i][asset]], extrareturn.iloc[i-window:i][asset],axis=1)
-            window_factors.columns = ['Rmrf', 'Smb', 'Hml']
+            window_factors = pd.concat([size.iloc[i-window:i][asset],ep.iloc[i-window:i][asset],turnover.iloc[i-window:i][asset], mkt.iloc[i-window:i][asset]],axis=1)
+            window_factors.columns = ['size', 'ep', 'turnover', 'mkt']
 
             # 清理数据：去除 NaN 和 Inf
             combined = pd.concat([window_returns, window_factors], axis=1).dropna()
@@ -296,22 +296,29 @@ def rollingCH3(size, ep, turnover, extrareturn, returns, window=252):
 
             # 回归模型
             model = sm.OLS(window_returns_clean, factors_with_const).fit()
-
-            preds.loc[dates[i], asset] = model.predict([1, size.iloc[i][asset], ep.iloc[i][asset], turnover.iloc[i][asset]])[0]
-
+            
+            if model.params.shape[0] == 5:
+                preds.loc[dates[i], asset] = model.predict([1, size.iloc[i][asset], ep.iloc[i][asset], turnover.iloc[i][asset], mkt.iloc[i][asset]])[0]
+                
+            else:
+                preds.loc[dates[i], asset] = model.predict([size.iloc[i][asset], ep.iloc[i][asset], turnover.iloc[i][asset], mkt.iloc[i][asset]])[0]
+            
     return preds
 
 def rolling_ols(y, X, window):
     """
-    滚动 OLS 回归函数。
+    滚动 OLS 回归函数，先对每个窗口内的缺失值进行删除（dropna），然后进行 OLS 回归。
     返回预测值（即预测的 y 值）。
     """
     result = y.rolling(window).apply(
-        lambda y_window: sm.OLS(y_window, sm.add_constant(X.loc[y_window.index])).fit().predict(sm.add_constant(X.loc[y_window.index])) 
-        if y_window.notnull().all() and X.loc[y_window.index].notnull().all()
+        lambda y_window: sm.OLS(
+            y_window.dropna(),  # 删除 y 中的缺失值
+            sm.add_constant(X.loc[y_window.index].dropna())  # 删除 X 中的缺失值
+        ).fit().predict(sm.add_constant(X.loc[y_window.index].dropna())) 
+        if y_window.dropna().notnull().all() and X.loc[y_window.index].dropna().notnull().all()
         else np.nan
     )
-    return result    
+    return result
 
 def capm_beta(returns, market_returns, rf_rate, window=252):
     """

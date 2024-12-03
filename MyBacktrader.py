@@ -338,20 +338,20 @@ if __name__ == "__main__":
     start_date = '2012-04-30'
     end_date = '2023-04-30'
     
-    # alphaset = 'ourAlphas'
+    alphaset = 'ourAlphas'
     subset = '20110430'
     
-    alphaset = 'multialpha'
+    # alphaset = 'multialpha'
     
     alpha_names = get_alpha_list(f'alphas/{alphaset}/{subset}')
-    alpha_names = ['alpha_ch3', 'alpha_famafrench']
+    alpha_names = ['alpha_CH3']
     
     strategy_list = [TestStrategy]
     
     list_assets, df_assets = get_hs300_stocks(f'{year}-01-01')
 
     # 设置保存文件夹
-    output_dir = "output_charts/"
+    output_dir = "output_charts"
     result_dir = "results"
     
     # redirect_output_to_file()
@@ -382,7 +382,7 @@ if __name__ == "__main__":
     
     results = pd.DataFrame(results, columns = ['alpha','年度', '策略名称','收益率', '日均收益率', '年化收益率', '最大回撤(%)', '夏普比率'])
     
-    results.to_csv(f'{result_dir}/results_2012_2023_multi2.csv', index=False)
+    results.to_csv(f'{result_dir}/results_2012_2023_CH3.csv', index=False)
     
     
     
