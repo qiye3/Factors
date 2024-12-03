@@ -534,9 +534,15 @@ class ourAlphas(Alphas):
         """
         self.extrareturn = self.market_return - self.rf
         
-        print(type(self.ep))
+        indexs = self.returns.index
+        columns = self.returns.columns
         
-        X = pd.concat([self.size, self.ep, self.turnover, self.extrareturn], axis=1)
+        X = pd.DataFrame(index=indexs, columns=columns)
+        
+        X['size'] = self.size
+        X['ep'] = self.ep
+        X['turnover'] = self.turnover
+        X['extrareturn'] = self.extrareturn
         
         y = self.returns - self.rf
         pred = rolling_ols(y, X, 252)
