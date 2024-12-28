@@ -6,6 +6,28 @@ from utils import *
 
 # 'asset', 'date', "open", "close", "high", "low", "volume", "amount", 'vwap', "pctChg", 'turnover', 'benchmark_open', 'benchmark_close', 'benchmark_high', 'benchmark_low', 'benchmark_vol', 'roe', 'roa', 'cvd', 'epq', 'emq', 'sgq', 'alaq', 'pmq', 'cta', 'size'
 
+def calculate_returns(self, condition, weighted):
+    """
+    计算每个时间点对应的股票组合收益率
+    :param condition: 满足条件的布尔矩阵
+    :param weighted: 是否使用市值加权平均
+    """
+    def calc(row, condition_row):
+        selected_stocks = row.index[condition_row]  # 获取符合条件的股票
+        if not selected_stocks.any():  # 如果没有满足条件的股票
+            return None
+        if weighted:
+            weights = self.size.loc[row.name, selected_stocks]
+            weights /= weights.sum()  # 归一化权重
+            return (row[selected_stocks] * weights).sum()
+        else:
+            return row[selected_stocks].mean()
+
+    return self.returns.apply(lambda row: calc(row, condition.loc[row.name]), axis=1)
+
+# 是否为市值加权平均
+weight = True
+
 class ourAlphas(Alphas):
     def __init__(self, df_data):
         self.open = df_data['open'] # 开盘价
@@ -30,7 +52,7 @@ class ourAlphas(Alphas):
         self.amount = df_data['amount'] # 成交额
         self.pctChg = df_data['pctChg'] # 涨跌幅
         self.bm = df_data['bm'] # 账面市值比
-        self.rf = df_data['rf'] # 无风险利率
+        self.rf = df_data['rf'] /100 # 无风险利率
         self.ep = df_data['ep'] # 每股收益
 
         self.Rmrf = df_data['Rmrf'] # 市场溢酬因子
@@ -40,8 +62,8 @@ class ourAlphas(Alphas):
         self.returns.to_csv('data/returns.csv')
         self.market_return.to_csv('data/market_return.csv')
     
-    # # 因子1：基于 ROE 的波动性因子
-    # def alpha_ROE(self):
+    # # # 因子1：基于 ROE 的波动性因子
+    # # def alpha_ROE(self):
     #     """
     #     alpha_ROE: 构造基于 ROE 的一个动态因子
     #     逻辑：
@@ -397,32 +419,82 @@ class ourAlphas(Alphas):
     #     market_alpha = ts_sum(self.returns - self.market_return, 20)
     #     return rank(market_alpha)
 
-    # # 因子26：Rmrf 市场溢酬因子
-    # def alpha_Rmrf(self):
-    #     """
-    #     alpha_Rmrf: Rmrf 市场溢酬因子
-    #     逻辑：
-    #     1. 计算市场溢酬因子 Rmrf 的排名值。
-    #     """
-    #     return rank(self.Rmrf)
+    # 因子26：Rmrf 市场溢酬因子
+    def alpha_Rmrf(self):
+        """
+        alpha_Rmrf: Rmrf 市场溢酬因子
+        逻辑：
+        r_m - r_f
+        """
+        # return rank(self.market_return - self.rf)
+        return self.market_return - self.rf
     
     # # 因子27：Smb 市值因子
-    # def alpha_Smb(self):
+    # def alpha_Smb(self, weighted=weight):
     #     """
     #     alpha_Smb: Smb 市值因子
+        
     #     逻辑：
-    #     1. 计算市值因子 Smb 的排名值。
+    #     SMB_t = 1/3(SL_t + SM_t + SH_t) - 1/3(BL_t + BM_t + BH_t)
+        
+    #     根据流通市值（之后称为Size，股票价格P乘以在外流通股数Q）将股票按照中位数分为1：1的大市值（B）和小市值（S)股票；
+        
+    #     根据BM数据将股票分为3：4：3的高中低（H/M/L）三组；这样我们就有了2×3共计6种投资组合（SL/SM/SH/BL/BM/BH）。
+        
+    #     然后我们通过市值加权平均的方式求得各组的收益率
     #     """
-    #     return rank(self.Smb)
+    #     # 股票名
+    #     stocks = self.returns.columns
+
+    #     # 1. 按照市值分组：小市值 (S) 和 大市值 (B)
+    #     median_size = self.size.median(axis=1)  # 每个时间点的市值中位数，按行计算
+    #     small_cap = self.size.le(median_size, axis=0)  # 小市值股票，返回布尔矩阵
+    #     large_cap = self.size.gt(median_size, axis=0)  # 大市值股票，返回布尔矩阵
+
+    #     # 2. 根据 BM 值将股票分为三组：高账面市值比率（H），中账面市值比率（M），低账面市值比率（L）
+    #     low_bm = self.bm.le(self.bm.quantile(1/3, axis=1), axis=0)  # 低账面市值比率（L）
+    #     mid_bm = self.bm.gt(self.bm.quantile(1/3, axis=1), axis=0) & self.bm.le(self.bm.quantile(2/3, axis=1), axis=0)  # 中账面市值比率（M）
+    #     high_bm = self.bm.gt(self.bm.quantile(2/3, axis=1), axis=0)  # 高账面市值比率（H）
+
+    #     # 3. 计算每个组合的收益率
+    #     SL = calculate_returns(self, small_cap & low_bm, weighted)
+    #     SM = calculate_returns(self, small_cap & mid_bm, weighted)
+    #     SH = calculate_returns(self, small_cap & high_bm, weighted)
+    #     BL = calculate_returns(self, large_cap & low_bm, weighted)
+    #     BM = calculate_returns(self, large_cap & mid_bm, weighted)
+    #     BH = calculate_returns(self, large_cap & high_bm, weighted)
+
+    #     # 4. 计算 SMB 因子
+    #     SMB = (SL + SM + SH) / 3 - (BL + BM + BH) / 3
+
+    #     results = pd.DataFrame(index=self.returns.index, columns=stocks)
+    #     for stock in stocks:
+    #         results[stock] = SMB
+    #     return results
     
     # # 因子28：Hml 账面市值比因子
-    # def alpha_Hml(self):
+    # def alpha_Hml(self, weighted=weight):
     #     """
-    #     alpha_Hml: Hml 账面市值比因子
+    #     alpha_Hml: 计算 HML 账面市值比因子
     #     逻辑：
-    #     1. 计算账面市值比因子 Hml 的排名值。
+    #     HML_t = 1/3(High_t) - 1/3(Low_t)
     #     """
-    #     return rank(self.Hml)
+    #     # 1. 根据 BM 值将股票分为三组：高账面市值比率（H），中账面市值比率（M），低账面市值比率（L）
+    #     low_bm = self.bm.le(self.bm.quantile(1/3, axis=1), axis=0)  # 低账面市值比率（L）
+    #     mid_bm = self.bm.gt(self.bm.quantile(1/3, axis=1), axis=0) & self.bm.le(self.bm.quantile(2/3, axis=1), axis=0)  # 中账面市值比率（M）
+    #     high_bm = self.bm.gt(self.bm.quantile(2/3, axis=1), axis=0)
+        
+    #     High = calculate_returns(self, high_bm, weighted)
+    #     Low = calculate_returns(self, low_bm, weighted)
+
+    #     # 3. 计算HML因子
+    #     HML = (High - Low)  # 计算高账面市值比率和低账面市值比率的回报差异
+        
+    #     stocks = self.returns.columns
+    #     results = pd.DataFrame(index=self.returns.index, columns=stocks)
+    #     for stock in stocks:
+    #         results[stock] = HML
+    #     return results
     
     # # 因子29：Fama-French 三因子模型
     # def alpha_Fama_French(self):
@@ -434,117 +506,226 @@ class ourAlphas(Alphas):
     #     alpha = self.returns - (self.Rmrf * (self.market_return - self.rf)  + self.Smb * self.size + self.Hml * self.bm) - self.rf
     #     return rank(alpha)
     
-    # # 因子30：账面市值比因子
-    # def alpha_bm(self):
-    #     """
-    #     alpha_bm: 账面市值比因子
-    #     逻辑：
-    #     1. 计算账面市值比因子 Hml 的排名值。
-    #     """
-    #     return rank(self.bm)
+    # # # 因子30：账面市值比因子
+    # # def alpha_bm(self):
+    # #     """
+    # #     alpha_bm: 账面市值比因子
+    # #     逻辑：
+    # #     1. 计算账面市值比因子 Hml 的排名值。
+    # #     """
+    # #     return rank(self.bm)
     
-    # # 因子31：换手率因子
-    # def alpha_turnover(self):
-    #     """
-    #     alpha_turnover: 前一天换手率因子
-    #     逻辑：
-    #     1. 计算换手率的排名值。
-    #     """
-    #     return rank(self.turnover.shift(-1))
+    # # # 因子31：换手率因子
+    # # def alpha_turnover(self):
+    # #     """
+    # #     alpha_turnover: 前一天换手率因子
+    # #     逻辑：
+    # #     1. 计算换手率的排名值。
+    # #     """
+    # #     return rank(self.turnover.shift(-1))
     
-    # # 因子32：成交量波动率因子
-    # def alpha_CVD(self):
-    #     """
-    #     alpha_CVD: 成交量波动率因子
-    #     逻辑：
-    #     1. 计算成交量波动率的排名值。
-    #     """
-    #     return rank(self.cvd)
+    # # # 因子32：成交量波动率因子
+    # # def alpha_CVD(self):
+    # #     """
+    # #     alpha_CVD: 成交量波动率因子
+    # #     逻辑：
+    # #     1. 计算成交量波动率的排名值。
+    # #     """
+    # #     return rank(self.cvd)
     
-    # # 因子33：每市值盈利因子
-    # def alpha_EPQ(self):
-    #     """
-    #     alpha_EPQ: 每市值盈利因子
-    #     逻辑：
-    #     1. 计算每市值盈利的排名值。
-    #     """
-    #     return rank(self.epq)
+    # # # 因子33：每市值盈利因子
+    # # def alpha_EPQ(self):
+    # #     """
+    # #     alpha_EPQ: 每市值盈利因子
+    # #     逻辑：
+    # #     1. 计算每市值盈利的排名值。
+    # #     """
+    # #     return rank(self.epq)
          
-    # # 因子34：企业价值倍数因子
-    # def alpha_EMQ(self):
-    #     """
-    #     alpha_EMQ: 企业价值倍数因子
-    #     逻辑：
-    #     1. 计算企业价值倍数的排名值。
-    #     """
-    #     return rank(self.emq)
+    # # # 因子34：企业价值倍数因子
+    # # def alpha_EMQ(self):
+    # #     """
+    # #     alpha_EMQ: 企业价值倍数因子
+    # #     逻辑：
+    # #     1. 计算企业价值倍数的排名值。
+    # #     """
+    # #     return rank(self.emq)
     
-    # # 因子35：季度销售增长率因子
-    # def alpha_SGQ(self):
-    #     """
-    #     alpha_SGQ: 季度销售增长率因子
-    #     逻辑：
-    #     1. 计算季度销售增长率的排名值。
-    #     """
-    #     return rank(self.sgq)
+    # # # 因子35：季度销售增长率因子
+    # # def alpha_SGQ(self):
+    # #     """
+    # #     alpha_SGQ: 季度销售增长率因子
+    # #     逻辑：
+    # #     1. 计算季度销售增长率的排名值。
+    # #     """
+    # #     return rank(self.sgq)
     
-    # # 因子36：流动资产占比因子
-    # def alpha_ALAQ(self):
-    #     """
-    #     alpha_ALAQ: 流动资产占比因子
-    #     逻辑：
-    #     1. 计算流动资产占比的排名值。
-    #     """
-    #     return rank(self.alaq)
+    # # # 因子36：流动资产占比因子
+    # # def alpha_ALAQ(self):
+    # #     """
+    # #     alpha_ALAQ: 流动资产占比因子
+    # #     逻辑：
+    # #     1. 计算流动资产占比的排名值。
+    # #     """
+    # #     return rank(self.alaq)
     
-    # # 因子37：季度利润率因子
-    # def alpha_PMQ(self):
-    #     """
-    #     alpha_PMQ: 季度利润率因子
-    #     逻辑：
-    #     1. 计算季度利润率的排名值。
-    #     """
-    #     return rank(self.pmq)
+    # # # 因子37：季度利润率因子
+    # # def alpha_PMQ(self):
+    # #     """
+    # #     alpha_PMQ: 季度利润率因子
+    # #     逻辑：
+    # #     1. 计算季度利润率的排名值。
+    # #     """
+    # #     return rank(self.pmq)
         
-    # # 因子38：Rmrf 市场溢酬因子
-    # def alpha_Rmrf(self):
-    #     """
-    #     alpha_Rmrf: Rmrf 市场溢酬因子
-    #     逻辑：
-    #     1. 计算市场溢酬因子 Rmrf 的排名值。
-    #     """
-    #     rmrf = self.market_return - self.rf
-    #     return rank(rmrf)
+    # # # 因子38：Rmrf 市场溢酬因子
+    # # def alpha_Rmrf(self):
+    # #     """
+    # #     alpha_Rmrf: Rmrf 市场溢酬因子
+    # #     逻辑：
+    # #     1. 计算市场溢酬因子 Rmrf 的排名值。
+    # #     """
+    # #     rmrf = self.market_return - self.rf
+    # #     return rank(rmrf)
     
-    # # 因子39: ep 每股收益
-    # def alpha_EP(self):
-    #     """
-    #     alpha_EP: 每股收益因子
-    #     逻辑：
-    #     1. 计算每股收益的排名值。
-    #     """
-    #     return rank(self.ep)
+    # # # 因子39: ep 每股收益
+    # # def alpha_EP(self):
+    # #     """
+    # #     alpha_EP: 每股收益因子
+    # #     逻辑：
+    # #     1. 计算每股收益的排名值。
+    # #     """
+    # #     return rank(self.ep)
     
     # 因子40：CH3
-    def alpha_CH3(self):
-        """
-        alpha_CH3: CH3 因子
-        逻辑：
-        1. 计算 CH3 因子的排名值。
-        """
-        self.extrareturn = self.market_return - self.rf
+    # def alpha_CH3(self):
+        # """
+        # alpha_CH3: CH3 因子
+        # 逻辑：
+        # 1. 计算 CH3 因子的排名值。
+        # """
+        # self.extrareturn = self.market_return - self.rf
         
-        dates = self.returns.index
-        assets = self.returns.columns
+        # dates = self.returns.index
+        # assets = self.returns.columns
         
-        size = pd.read_csv('alphas/ourAlphas/20110430/alpha_size.csv', index_col=0).reindex(index=dates, columns=assets)
-        ep = pd.read_csv('alphas/ourAlphas/20110430/alpha_EP.csv', index_col=0).reindex(index=dates, columns=assets)
-        turnover = pd.read_csv('alphas/ourAlphas/20110430/alpha_turnover.csv', index_col=0).reindex(index=dates, columns=assets)
-        Rmrf = pd.read_csv('alphas/ourAlphas/20110430/alpha_Rmrf.csv', index_col=0).reindex(index=dates, columns=assets)
+        # size = pd.read_csv('alphas/ourAlphas/20110430/alpha_size.csv', index_col=0).reindex(index=dates, columns=assets)
+        # ep = pd.read_csv('alphas/ourAlphas/20110430/alpha_EP.csv', index_col=0).reindex(index=dates, columns=assets)
+        # turnover = pd.read_csv('alphas/ourAlphas/20110430/alpha_turnover.csv', index_col=0).reindex(index=dates, columns=assets)
+        # Rmrf = pd.read_csv('alphas/ourAlphas/20110430/alpha_Rmrf.csv', index_col=0).reindex(index=dates, columns=assets)
         
-        y = self.returns - self.rf
-        pred = rollingCH3(size, ep, turnover, Rmrf, y)
-        return rank(pred)
+        # y = self.returns - self.rf
+        # pred = rollingCH3(size, ep, turnover, Rmrf, y)
+        # return rank(pred)
+  
+    # # 因子41：CH3_Size
+    # def alpha_CH3_Size(self, weighted=weight):
+    #     """
+    #     alpha_CH3_Size: CH3_Size 因子
+    #     a. 将股票按市场规模中值拆分为两组：小股（S）和大股（B）。
+
+    #     b. 将股票根据EP（earnings-price ratio）划分为三组：前30%为价值组（V）、中间40%为中间组（M）底部30%为成长组（G）
+
+    #     c. 根据这些组的区间来形成六种最终Size-EP组合的价值加权组合：S/V、S/M、S/G、B/V、B/M和B/G。
+
+    #     Size(规模因子)，SMB=1/3(S/V+S/M+S/G)–1/3(B/V+B/M+B/G)
+
+    #     Value(价值因子），VMG=1/2(S/V+B/V)–1/2(S/G+B/G)
+
+    #     Market(市场因子)=“价值加权组合的回报率”—“一年期存款利率”
+    #     """
+    #     # 股票名
+    #     stocks = self.returns.columns
+
+    #     # 1. 按照市值分组：小市值 (S) 和 大市值 (B)
+    #     median_size = self.size.median(axis=1)  # 每个时间点的市值中位数，按行计算
+    #     small_cap = self.size.le(median_size, axis=0)  # 小市值股票，返回布尔矩阵
+    #     large_cap = self.size.gt(median_size, axis=0)  # 大市值股票，返回布尔矩阵
+
+    #     # 2. 根据 EP（earnings-price ratio）划分为三组：价值（V）、中间（M）、成长（G）
+    #     low_ep = self.ep.le(self.ep.quantile(1/3, axis=1), axis=0)  # 低EP（成长组 G）
+    #     mid_ep = self.ep.gt(self.ep.quantile(1/3, axis=1), axis=0) & self.ep.le(self.ep.quantile(2/3, axis=1), axis=0)  # 中EP（中间组 M）
+    #     high_ep = self.ep.gt(self.ep.quantile(2/3, axis=1), axis=0)  # 高EP（价值组 V）
+        
+    #     # 3. 计算每个组合的收益率
+    #     S_V = calculate_returns(self, small_cap & high_ep, weighted)
+    #     S_M = calculate_returns(self, small_cap & mid_ep, weighted)
+    #     S_G = calculate_returns(self, small_cap & low_ep, weighted)
+    #     B_V = calculate_returns(self, large_cap & high_ep, weighted)
+    #     B_M = calculate_returns(self, large_cap & mid_ep, weighted)
+    #     B_G = calculate_returns(self, large_cap & low_ep, weighted)
+        
+    #     # 4. 计算 SMB 因子
+    #     SMB = (S_V + S_M + S_G) / 3 - (B_V + B_M + B_G) / 3
+        
+    #     results = pd.DataFrame(index=self.returns.index, columns=stocks)
+    #     for stock in stocks:
+    #         results[stock] = SMB
+    #     return results
+    
+    # # 因子42：CH3_EP
+    # def alpha_CH3_Value(self, weighted=weight):
+    #     """
+    #     alpha_CH3_Value: CH3_Value 因子
+    #     """
+    #             # 股票名
+    #     stocks = self.returns.columns
+
+    #     # 1. 按照市值分组：小市值 (S) 和 大市值 (B)
+    #     median_size = self.size.median(axis=1)  # 每个时间点的市值中位数，按行计算
+    #     small_cap = self.size.le(median_size, axis=0)  # 小市值股票，返回布尔矩阵
+    #     large_cap = self.size.gt(median_size, axis=0)  # 大市值股票，返回布尔矩阵
+
+    #     # 2. 根据 EP（earnings-price ratio）划分为三组：价值（V）、中间（M）、成长（G）
+    #     low_ep = self.ep.le(self.ep.quantile(1/3, axis=1), axis=0)  # 低EP（成长组 G）
+    #     mid_ep = self.ep.gt(self.ep.quantile(1/3, axis=1), axis=0) & self.ep.le(self.ep.quantile(2/3, axis=1), axis=0)  # 中EP（中间组 M）
+    #     high_ep = self.ep.gt(self.ep.quantile(2/3, axis=1), axis=0)  # 高EP（价值组 V）
+        
+    #     # 3. 计算每个组合的收益率
+    #     S_V = calculate_returns(self, small_cap & high_ep, weighted)
+    #     S_M = calculate_returns(self, small_cap & mid_ep, weighted)
+    #     S_G = calculate_returns(self, small_cap & low_ep, weighted)
+    #     B_V = calculate_returns(self, large_cap & high_ep, weighted)
+    #     B_M = calculate_returns(self, large_cap & mid_ep, weighted)
+    #     B_G = calculate_returns(self, large_cap & low_ep, weighted)
+        
+    #     # 4. 计算 HML 因子
+    #     HML = (S_V + B_V) / 2 - (S_G + B_G) / 2
+        
+    #     results = pd.DataFrame(index=self.returns.index, columns=stocks)
+    #     for stock in stocks:
+    #         results[stock] = HML
+    #     return results
+    
+    # # 因子43：CH3_换手率
+    # def alpha_CH3_turnover(self, weighted=weight):
+    #     """
+    #     alpha_turnover_factor: 构造基于换手率的积极/消极因子。
+    #     - 前30%（积极组，高换手率）
+    #     - 后30%（消极组，低换手率）
+    #     """
+    #     # 股票名
+    #     stocks = self.returns.columns
+        
+    #     abnormal_turnover = ts_sum(self.turnover, 21) / ts_sum(self.turnover, 252)
+
+    #     # 1. 计算换手率分位数
+    #     top_30 = abnormal_turnover.gt(abnormal_turnover.quantile(0.7, axis=1), axis=0)  # 前30%（高换手率，积极组）
+    #     bottom_30 = abnormal_turnover.le(abnormal_turnover.quantile(0.3, axis=1), axis=0)  # 后30%（低换手率，消极组）
+
+    #     Opti = calculate_returns(self, top_30, weighted)
+    #     Pessi = calculate_returns(self, bottom_30, weighted)
+        
+    #     # 3. 计算因子值
+    #     PMO = Pessi - Opti
+        
+    #     results = pd.DataFrame(index=self.returns.index, columns=stocks)
+        
+    #     for stock in stocks:
+    #         results[stock] = PMO
+
+    #     return results
+        
     
 if __name__ == '__main__':
     year = '2011'

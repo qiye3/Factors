@@ -66,7 +66,7 @@ class Alphas(object):
         df_all['roe'] = df_all['净利润'] / df_all['股东权益合计']
         df_all['roa'] = df_all['净利润'] / df_all['资产-总资产']
         df_all['cvd'] = (
-            df_all['成交量'].rolling(window=120).std() / 
+            df_all['成交量'].rolling(window=120).std() /
             df_all['成交量'].rolling(window=120).mean()
         )
         # 换手率百分比转为小数

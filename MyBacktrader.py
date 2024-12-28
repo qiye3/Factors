@@ -16,7 +16,7 @@ from tqdm import tqdm
 matplotlib.use('Agg')  # 使用非交互式后端
 matplotlib.rcParams['font.family'] = 'SimHei'
 
-printlog = False
+printlog = True
 
 warnings.simplefilter(action='ignore', category=(FutureWarning, SettingWithCopyWarning))
 
@@ -113,6 +113,7 @@ class TestStrategy(bt.Strategy):
     params = (
         ('buy_stocks', None), # 传入各个调仓日的股票列表和相应的权重
     )
+    
     def log(self, txt, dt=None):
         ''' Logging function fot this strategy'''
         dt = dt or self.datas[0].datetime.date(0)
@@ -195,6 +196,7 @@ class TestStrategy(bt.Strategy):
         
     #订单日志    
     def notify_order(self, order):
+        
         # 未被处理的订单
         if order.status in [order.Submitted, order.Accepted]:
             return
@@ -267,7 +269,7 @@ def backtest_alpha(alpha_name, year, start_date, end_date, alphaset, subset,list
 
     # 假设 strat.analyzers._TimeReturn.get_analysis() 已经返回了一个pandas Series对象
     ret = pd.Series(strat.analyzers._TimeReturn.get_analysis())
-    # ret.to_csv(f'results/{alpha_name}_TimeReturn.csv')
+    ret.to_csv(f'results/{alpha_name}_TimeReturn.csv')
     
     ret1 = [alpha_name,  # 因子名称
            year,  # 年度'
@@ -334,17 +336,17 @@ def plot_alpha_results(alpha_name, output_dir, plot_results):
 
 # 主程序
 if __name__ == "__main__":
-    year = 2012
-    start_date = '2012-04-30'
+    year = 2018
+    start_date = '2018-04-30'
     end_date = '2023-04-30'
     
     alphaset = 'ourAlphas'
     subset = '20110430'
     
-    # alphaset = 'multialpha'
+    alphaset = 'multialpha'
     
     alpha_names = get_alpha_list(f'alphas/{alphaset}/{subset}')
-    alpha_names = ['alpha_CH3']
+    alpha_names = ['alpha_isXgb_True', 'alpha_isXgb_False']
     
     strategy_list = [TestStrategy]
     
@@ -354,8 +356,8 @@ if __name__ == "__main__":
     output_dir = "output_charts"
     result_dir = "results"
     
-    # redirect_output_to_file()
-    restore_output()
+    redirect_output_to_file()
+    # restore_output()
     
     # 如果文件夹不存在，则创建文件夹
     if not os.path.exists(output_dir):
@@ -382,7 +384,7 @@ if __name__ == "__main__":
     
     results = pd.DataFrame(results, columns = ['alpha','年度', '策略名称','收益率', '日均收益率', '年化收益率', '最大回撤(%)', '夏普比率'])
     
-    results.to_csv(f'{result_dir}/results_2012_2023_CH3.csv', index=False)
+    # results.to_csv(f'{result_dir}/results_2012_2023_xgb.csv', index=False)
     
     
     
