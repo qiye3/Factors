@@ -26,7 +26,7 @@ def calculate_returns(self, condition, weighted):
     return self.returns.apply(lambda row: calc(row, condition.loc[row.name]), axis=1)
 
 # 是否为市值加权平均
-weight = True
+weight = False
 
 class ourAlphas(Alphas):
     def __init__(self, df_data):
@@ -52,7 +52,7 @@ class ourAlphas(Alphas):
         self.amount = df_data['amount'] # 成交额
         self.pctChg = df_data['pctChg'] # 涨跌幅
         self.bm = df_data['bm'] # 账面市值比
-        self.rf = df_data['rf'] /100 # 无风险利率
+        self.rf = df_data['rf'] # 无风险利率
         self.ep = df_data['ep'] # 每股收益
 
         self.Rmrf = df_data['Rmrf'] # 市场溢酬因子
@@ -496,16 +496,6 @@ class ourAlphas(Alphas):
     #         results[stock] = HML
     #     return results
     
-    # # 因子29：Fama-French 三因子模型
-    # def alpha_Fama_French(self):
-    #     """
-    #     alpha_Fama_French: Fama-French 三因子模型
-    #     逻辑：
-    #     1. 计算 Fama-French 三因子模型的排名值。
-    #     """
-    #     alpha = self.returns - (self.Rmrf * (self.market_return - self.rf)  + self.Smb * self.size + self.Hml * self.bm) - self.rf
-    #     return rank(alpha)
-    
     # # # 因子30：账面市值比因子
     # # def alpha_bm(self):
     # #     """
@@ -725,7 +715,94 @@ class ourAlphas(Alphas):
     #         results[stock] = PMO
 
     #     return results
+    
+    # 生成Fama投资组合的被解释变量
+    def alpha_portfolio_Fama(self, weighted=weight):
+        """
+        alpha_portfolio_Fama: 生成投资组合的被解释变量
+        逻辑：
+        按市值、账面市值比分成9组，以每一组的市值加权收益率/直接加权收益率作为被解释变量，对应的Rmrf, Smb, Hml(+constant)作为解释变量
+        """
+        # 股票名
+        stocks = self.returns.columns
         
+        # 1. 按市值分组：小市值 (S)、中市值 (M)、大市值 (B)
+        size_quantiles = self.size.quantile([1/3, 2/3], axis=1)
+        small_cap = self.size.le(size_quantiles.iloc[0], axis=0)  # 小市值股票
+        mid_cap = self.size.gt(size_quantiles.iloc[0], axis=0) & self.size.le(size_quantiles.iloc[1], axis=0)  # 中市值股票
+        large_cap = self.size.gt(size_quantiles.iloc[1], axis=0)  # 大市值股票
+        
+        # 2. 根据账面市值比（B/M）划分为三组：低账面市值比（L）、中账面市值比（M）、高账面市值比（H）
+        bm_quantiles = self.bm.quantile([1/3, 2/3], axis=1)
+        low_bm = self.bm.le(bm_quantiles.iloc[0], axis=0)  # 低账面市值比（L）
+        mid_bm = self.bm.gt(bm_quantiles.iloc[0], axis=0) & self.bm.le(bm_quantiles.iloc[1], axis=0)  # 中账面市值比（M）
+        high_bm = self.bm.gt(bm_quantiles.iloc[1], axis=0)  # 高账面市值比（H）
+        
+        # 3. 计算每个组合的加权收益率（市值加权收益率）
+        S_L = calculate_returns(self, small_cap & low_bm, weighted)
+        S_M = calculate_returns(self, small_cap & mid_bm, weighted)
+        S_H = calculate_returns(self, small_cap & high_bm, weighted)
+        M_L = calculate_returns(self, mid_cap & low_bm, weighted)
+        M_M = calculate_returns(self, mid_cap & mid_bm, weighted)
+        M_H = calculate_returns(self, mid_cap & high_bm, weighted)
+        B_L = calculate_returns(self, large_cap & low_bm, weighted)
+        B_M = calculate_returns(self, large_cap & mid_bm, weighted)
+        B_H = calculate_returns(self, large_cap & high_bm, weighted)
+        
+        # 创建一个 DataFrame 来存储每个股票的被解释变量
+        names = ['S_L', 'S_M', 'S_H', 'M_L', 'M_M', 'M_H', 'B_L', 'B_M', 'B_H']
+        results = pd.DataFrame(index=self.returns.index, columns=names)
+        
+        for name in names:
+            results[name] = eval(name)
+            
+        results.to_csv(f'alphas/multialpha/alpha_portfolio_Fama_{weight}.csv')
+    
+    # 生成CH3投资组合的被解释变量
+    def alpha_portfolio_CH3(self, weighted=weight):
+        """
+        alpha_portfolio_CH3: 生成投资组合的被解释变量
+        逻辑：
+        按市值、账面市值比、换手率分成8组(2 * 2 * 2)，以每一组的市值加权收益率/直接加权收益率作为被解释变量，对应的CH3, CH3_Size, CH3_turnover(+constant)作为解释变量
+        """
+        # 股票名
+        stocks = self.returns.columns
+        
+        # 1. 按市值分组：小市值 (S)、大市值 (B)
+        size_quantiles = self.size.quantile(1/2, axis=1)
+        small_cap = self.size.le(size_quantiles, axis=0)
+        large_cap = self.size.gt(size_quantiles, axis=0)
+        
+        # 2. 根据账面市值比（B/M）划分为两组：低账面市值比（L）、高账面市值比（H）
+        bm_quantiles = self.bm.quantile(1/2, axis=1)
+        low_bm = self.bm.le(bm_quantiles, axis=0)
+        high_bm = self.bm.gt(bm_quantiles, axis=0)
+        
+        # 3. 根据换手率划分为两组：低换手率（L）、高换手率（H）
+        turnover_quantiles = self.turnover.quantile(1/2, axis=1)
+        low_turnover = self.turnover.le(turnover_quantiles, axis=0)
+        high_turnover = self.turnover.gt(turnover_quantiles, axis=0)
+        
+        # 5. 计算每个股票的被解释变量（市值加权收益率 或 直接加权收益率）
+        S_L_L = calculate_returns(self, small_cap & low_bm & low_turnover, weighted)
+        S_L_H = calculate_returns(self, small_cap & low_bm & high_turnover, weighted)
+        S_H_L = calculate_returns(self, small_cap & high_bm & low_turnover, weighted)
+        S_H_H = calculate_returns(self, small_cap & high_bm & high_turnover, weighted)
+        B_L_L = calculate_returns(self, large_cap & low_bm & low_turnover, weighted)
+        B_L_H = calculate_returns(self, large_cap & low_bm & high_turnover, weighted)
+        B_H_L = calculate_returns(self, large_cap & high_bm & low_turnover, weighted)
+        B_H_H = calculate_returns(self, large_cap & high_bm & high_turnover, weighted)
+
+        # 创建一个 DataFrame 来存储每个股票的被解释变量
+        names = ['S_L_L', 'S_L_H', 'S_H_L', 'S_H_H', 'B_L_L', 'B_L_H', 'B_H_L', 'B_H_H']
+        results = pd.DataFrame(index=self.returns.index, columns=names)
+        
+        for name in names:
+            results[name] = eval(name)
+            
+        results.to_csv(f'alphas/multialpha/alpha_portfolio_CH3_{weight}.csv')
+
+    
     
 if __name__ == '__main__':
     year = '2011'

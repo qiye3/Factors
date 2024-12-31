@@ -358,3 +358,75 @@ def identify_exchange(code):
         return 1  # 深交所
     else:
         return 2  # 其他交易所
+
+
+
+
+
+
+
+
+# 定义一个生成被解释变量的函数，传入参数：两个列表，根据什么分组，分成几组，返回一个dataframe，分别代表每个组合当期的收益率（市值加权或直接平均）
+def generate_explained_variable(df_all_pivot, groupby, n_groups, weighted=True):
+    """
+    generate_explained_variable: 根据分组变量生成被解释变量
+    参数：
+        df_all_pivot (DataFrame): 包含股票数据（包括收益率等）的数据框
+        groupby (list): 分组的变量列表，例如 ['ep', 'size']
+        n_groups (list): 每个变量的分组数，例如 [3, 3] 表示每个变量分成 3 组
+        weighted (bool): 是否使用市值加权，默认为 True
+    返回：
+        DataFrame: 每个组合的收益率
+    """
+    
+    # 检查 groupby 和 n_groups 长度是否一致
+    if len(groupby) != len(n_groups):
+        raise ValueError("groupby 和 n_groups 的长度必须一致")
+    
+    # 生成组合名称列表
+    group_names = []
+    for i, group_var in enumerate(groupby):
+        for j in range(1, n_groups[i] + 1):
+            group_names.append(f'{group_var}{j}')
+            
+    
+    explained_variable = pd.DataFrame(index=df_all_pivot.index, columns=group_names)
+    
+    # 根据quantile来在每个时间点上对每个股票生成分组索引
+    for date in df_all_pivot.index:
+        # 生成分组索引
+        group_index = pd.Series(index=df_all_pivot.columns, data=np.nan)
+        for var, n_group in zip(groupby, n_groups):
+            quantile = pd.qcut(df_all_pivot.loc[date, var], n_group, labels=False, duplicates='drop')
+            group_index.update(quantile)
+        
+        # 根据分组索引生成收益率
+        for group in group_names:
+            group_stocks = group_index[group_index == int(group[-1])].index
+            
+            if weighted:
+                explained_variable.loc[date, group] = np.average(df_all_pivot.loc[date, 'returns'][group_stocks], weights=df_all_pivot.loc[date, 'size'][group_stocks])
+            else:
+                explained_variable.loc[date, group] = np.mean(df_all_pivot.loc[date, 'returns'][group_stocks])
+                
+    return explained_variable
+
+
+def calculate_returns(df_all_pivot, condition, weighted):
+    """
+    计算每个时间点对应的股票组合收益率
+    :param condition: 满足条件的布尔矩阵
+    :param weighted: 是否使用市值加权平均
+    """
+    def calc(row, condition_row):
+        selected_stocks = row.index[condition_row]  # 获取符合条件的股票
+        if not selected_stocks.any():  # 如果没有满足条件的股票
+            return None
+        if weighted:
+            weights = df_all_pivot.size.loc[row.name, selected_stocks]
+            weights /= weights.sum()  # 归一化权重
+            return (row[selected_stocks] * weights).sum()
+        else:
+            return row[selected_stocks].mean()
+
+    return df_all_pivot.returns.apply(lambda row: calc(row, condition.loc[row.name]), axis=1)

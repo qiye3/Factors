@@ -114,6 +114,8 @@ class Alphas(object):
             })
         df_all['turnover']  = df_all['turnover']/100
         df_all['vwap'] =  df_all.amount / df_all.volume / 100 # 计算平均成交价
+        
+        df_all['rf'] = df_all['rf'] / 100
 
         # 返回计算因子需要的列
         df_all = df_all.reset_index()
